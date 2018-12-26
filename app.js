@@ -135,13 +135,18 @@ app.get('/signup', function(req, res) {
   });
 });
 
+
 app.post('/signup', function(req, res) {
 
     // Make sure this account doesn't already exist
     User.findOne({ email: req.body.email }, function (err, user) {
 
       // Make sure user doesn't already exist
-      if (user) return res.status(400).send({ msg: 'The email address you have entered is already associated with another account.' });
+      if (user) {
+        req.flash('error', 'The email address you have entered is already associated with another account.');
+        return res.redirect('/signup');
+       // return res.status(400).send({ msg: 'The email address you have entered is already associated with another account.' });
+      }
   
       // Create and save the user
       user = new User({ username: req.body.username, email: req.body.email, password: req.body.password });
@@ -167,7 +172,9 @@ app.post('/signup', function(req, res) {
               var mailOptions = { from: 'no-reply@yourwebapplication.com', to: user.email, subject: 'Account Verification Token', text: 'Hello,\n\n' + 'Please verify your account by clicking the link: \nhttp:\/\/' + req.headers.host + '\/confirmation\/' + token.token + '.\n' };
               transporter.sendMail(mailOptions, function (err) {
                   if (err) { return res.status(500).send({ msg: err.message }); }
-                  res.status(200).send('A verification email has been sent to ' + user.email + '.');
+                  req.flash('success', 'A verification email has been sent to ' + user.email + '.');
+                  return res.redirect('/confirm');
+                 // res.status(200).send('A verification email has been sent to ' + user.email + '.');
               });
           });
       });
@@ -192,13 +199,20 @@ app.get('/confirmation/:token', function (req, res, next) {
           user.isVerified = true;
           user.save(function (err) {
               if (err) { return res.status(500).send({ msg: err.message }); }
-              res.status(200).send("The account has been verified. Please log in.");
+              req.flash('success', 'The account has been verified. Please log in.');
+              return res.redirect('/confirm');
+              //res.status(200).send("The account has been verified. Please log in.");
           });
       });
   });
 });
 
 
+app.get('/confirm', function(req, res){
+  res.render('confirm', {
+    user: req.user
+  });
+});
 
 app.get('/logout', function(req, res){
   req.logout();
