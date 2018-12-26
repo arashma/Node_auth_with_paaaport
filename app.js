@@ -4,8 +4,7 @@ var favicon = require('static-favicon');
 var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
-var session = require('express-session')
-var mongoose = require('mongoose');
+var session = require('express-session');
 var nodemailer = require('nodemailer');
 var passport = require('passport');
 var LocalStrategy = require('passport-local').Strategy;
@@ -13,6 +12,10 @@ var bcrypt = require('bcrypt-nodejs');
 var async = require('async');
 var crypto = require('crypto');
 var flash = require('express-flash');
+var {mongoose}    = require('./db/mongoose');
+var {User}        = require('./models/user');
+var {Token}        = require('./models/token');
+var {signupPost}  = require('./routes/signup')
 
 passport.use(new LocalStrategy(function(username, password, done) {
   User.findOne({ username: username }, function(err, user) {
@@ -38,50 +41,6 @@ passport.deserializeUser(function(id, done) {
     done(err, user);
   });
 });
-
-var userSchema = new mongoose.Schema({
-  username: { type: String, required: true, unique: true },
-  email: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
-  isVerified: { type: Boolean, default: false },
-  resetPasswordToken: String,
-  resetPasswordExpires: Date
-});
-
-const tokenSchema = new mongoose.Schema({
-  _userId: { type: mongoose.Schema.Types.ObjectId, required: true, ref: 'User' },
-  token: { type: String, required: true },
-  createdAt: { type: Date, required: true, default: Date.now, expires: 43200 }
-});
-
-userSchema.pre('save', function(next) {
-  var user = this;
-  var SALT_FACTOR = 5;
-
-  if (!user.isModified('password')) return next();
-
-  bcrypt.genSalt(SALT_FACTOR, function(err, salt) {
-    if (err) return next(err);
-
-    bcrypt.hash(user.password, salt, null, function(err, hash) {
-      if (err) return next(err);
-      user.password = hash;
-      next();
-    });
-  });
-});
-
-userSchema.methods.comparePassword = function(candidatePassword, cb) {
-  bcrypt.compare(candidatePassword, this.password, function(err, isMatch) {
-    if (err) return cb(err);
-    cb(null, isMatch);
-  });
-};
-
-var User  = mongoose.model('User', userSchema);
-var Token = mongoose.model('Token', tokenSchema);
-
-mongoose.connect('mongodb://localhost:27017/emailverify');
 
 var app = express();
 
@@ -136,52 +95,7 @@ app.get('/signup', function(req, res) {
 });
 
 
-app.post('/signup', function(req, res) {
-
-    // Make sure this account doesn't already exist
-    User.findOne({ email: req.body.email }, function (err, user) {
-
-      // Make sure user doesn't already exist
-      if (user) {
-        req.flash('error', 'The email address you have entered is already associated with another account.');
-        return res.redirect('/signup');
-       // return res.status(400).send({ msg: 'The email address you have entered is already associated with another account.' });
-      }
-  
-      // Create and save the user
-      user = new User({ username: req.body.username, email: req.body.email, password: req.body.password });
-      user.save(function (err) {
-          if (err) { return res.status(500).send({ msg: err.message }); }
-  
-          // Create a verification token for this user
-          var token = new Token({ _userId: user._id, token: crypto.randomBytes(16).toString('hex') });
-  
-          // Save the verification token
-          token.save(function (err) {
-              if (err) { return res.status(500).send({ msg: err.message }); }
-  
-              // Send the email
-              var transporter = nodemailer.createTransport({ 
-                service: 'gmail',
-                host: "smtp.gmail.com",
-                auth: {
-                  user: 'arashdevelopermind@gmail.com',
-                  pass: 'ARASH1371'
-                }
-                });
-              var mailOptions = { from: 'no-reply@yourwebapplication.com', to: user.email, subject: 'Account Verification Token', text: 'Hello,\n\n' + 'Please verify your account by clicking the link: \nhttp:\/\/' + req.headers.host + '\/confirmation\/' + token.token + '.\n' };
-              transporter.sendMail(mailOptions, function (err) {
-                  if (err) { return res.status(500).send({ msg: err.message }); }
-                  req.flash('success', 'A verification email has been sent to ' + user.email + '.');
-                  return res.redirect('/confirm');
-                 // res.status(200).send('A verification email has been sent to ' + user.email + '.');
-              });
-          });
-      });
-    });
-
-
-});
+app.post('/signup', signupPost );
 
 
 app.get('/confirmation/:token', function (req, res, next) {
