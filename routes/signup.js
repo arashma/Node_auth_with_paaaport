@@ -10,11 +10,11 @@ var signupPost = function(req, res, next) {
     User.findOne({ email: req.body.email }, function (err, user) {
 
       // Make sure user doesn't already exist
-      if (user) {
-        req.flash('error', 'The email address you have entered is already associated with another account.');
-        return res.redirect('/signup');
-       // return res.status(400).send({ msg: 'The email address you have entered is already associated with another account.' });
-      }
+    //   if (user) {
+    //     req.flash('error', 'The email address you have entered is already associated with another account.');
+    //     return res.redirect('/signup');
+    //    // return res.status(400).send({ msg: 'The email address you have entered is already associated with another account.' });
+    //   }
   
       // Create and save the user
       user = new User({ username: req.body.username, email: req.body.email, password: req.body.password });
